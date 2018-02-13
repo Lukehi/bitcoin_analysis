@@ -1,46 +1,45 @@
 # Twitter Bitcoin sentiment analysis
 
-import logging
 import got
 from nltk.sentiment.util import *
-import datetime
 import pandas as pd
-import regex
-from textblob import TextBlob
 from nltk.corpus import twitter_samples
+import preprocessor as p
+from nltk.sentiment.vader import SentimentIntensityAnalyzer
 
 from dateutil import rrule
 from datetime import datetime, timedelta
 
+directory = '/Users/lukehindson/PycharmProjects/Bitcoin/'
 
-def remove_by_regex(tweets, regexp):
-	tweets.loc[:, "Tweets"].replace(regexp, "", inplace=True)
-	return tweets
-
-
-now = datetime.now()
-start = now - timedelta(days=6*365)
-
-columns = ['date','id', 'permalink', 'username', 'text', 'retweets', 'favorites', 'mentions', 'hashtags', 'geo']
+# Setup blank dataframe to hold tweet output
+columns = ['date','id', 'permalink', 'username', 'text','clean_text', 'retweets', 'favorites', 'mentions', 'hashtags',
+           'geo', 'sentiment']
 df = pd.DataFrame(columns=columns)
-# Extract top 50 tweets for each day from start to now store results in df
+
+# Extract top 50 tweets for each day from start to now. Store results in df
+now = datetime.now()
+#now = start+timedelta(days=10)
+start = datetime.strptime('2011-09-13', '%Y-%m-%d')
+
+sid = SentimentIntensityAnalyzer()
+
 for dt in rrule.rrule(rrule.DAILY, dtstart=start, until=now):
 	print dt
 	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince(dt.strftime('%Y-%m-%d'))\
-		.setUntil((dt+timedelta(days=1)).strftime('%Y-%m-%d')).setTopTweets(True).setMaxTweets(10)
+		.setUntil((dt+timedelta(days=1)).strftime('%Y-%m-%d')).setTopTweets(True).setMaxTweets(50)
 	tweets = got.manager.TweetManager.getTweets(tweetCriteria)
 	# write the output to pandas
 	for tweet in tweets:
 		print tweet.date
+		tweet_cleantext = p.clean(tweet.text.encode('utf-8')).replace('/', '').replace('https', '').replace('http', '')
+		sentiment = sid.polarity_scores(tweet_cleantext)['compound']
 		df = df.append({'date': tweet.date, 'id': tweet.id, 'permalink':tweet.permalink, 'username': tweet.username,
-		                'text': tweet.text, 'retweets': tweet.retweets, 'favorites': tweet.favorites,
-		                'mentions': tweet.mentions, 'hashtags': tweet.hashtags, 'geo': tweet.geo}, ignore_index=True)
-
-
-# Cleanup the text
-
-
-# Run NLTK VADER
+		                'text': tweet.text, 'clean_text':tweet_cleantext, 'sentiment':sentiment,
+		                'retweets': tweet.retweets, 'favorites': tweet.favorites, 'mentions': tweet.mentions,
+		                'hashtags': tweet.hashtags, 'geo': tweet.geo}, ignore_index=True)
+		# Pickle it regularly just incase it falls over
+		df.to_pickle(directory+'tweets.pickle')
 
 # Test the NLTK VADER approach on the twitter corpus. Do we accurately retrieve +ve or -ve reviews?
 # http://www.nltk.org/api/nltk.sentiment.html
