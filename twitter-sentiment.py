@@ -6,23 +6,29 @@ import pandas as pd
 from nltk.corpus import twitter_samples
 import preprocessor as p
 from nltk.sentiment.vader import SentimentIntensityAnalyzer
-
+from afinn import Afinn
+import matplotlib.pyplot as plt
 from dateutil import rrule
 from datetime import datetime, timedelta
+from pandas import Series, DataFrame, Panel
 
 directory = '/Users/lukehindson/PycharmProjects/Bitcoin/'
 
 # Setup blank dataframe to hold tweet output
 columns = ['date','id', 'permalink', 'username', 'text','clean_text', 'retweets', 'favorites', 'mentions', 'hashtags',
-           'geo', 'sentiment']
+           'geo', 'sentiment_vader', 'sentiment_afinn']
 df = pd.DataFrame(columns=columns)
 
 # Extract top 50 tweets for each day from start to now. Store results in df
+# Might need to be a bit smarter than this and extract at random time of the day because selecting the top doesnt seem to work
 now = datetime.now()
-#now = start+timedelta(days=10)
-start = datetime.strptime('2011-09-13', '%Y-%m-%d')
+#start = datetime.strptime('2011-09-13', '%Y-%m-%d')
+start = now-timedelta(days=5)
+
+#now = start+timedelta(days=365)
 
 sid = SentimentIntensityAnalyzer()
+afinn = Afinn()
 
 for dt in rrule.rrule(rrule.DAILY, dtstart=start, until=now):
 	print dt
@@ -32,18 +38,32 @@ for dt in rrule.rrule(rrule.DAILY, dtstart=start, until=now):
 	# write the output to pandas
 	for tweet in tweets:
 		print tweet.date
-		tweet_cleantext = p.clean(tweet.text.encode('utf-8')).replace('/', '').replace('https', '').replace('http', '')
-		sentiment = sid.polarity_scores(tweet_cleantext)['compound']
+		if type(tweet.text) == unicode:
+			tweet_text = unicodedata.normalize('NFKD', tweet.text).encode('ascii','ignore')
+		else:
+			tweet_text = tweet.text
+		tweet_cleantext = p.clean(tweet_text).replace('/', '').replace('https', '').replace('http', '')
+		sentiment_vader = sid.polarity_scores(tweet_cleantext)['compound']
+		sentiment_afinn = afinn.score(str(tweet_cleantext))
 		df = df.append({'date': tweet.date, 'id': tweet.id, 'permalink':tweet.permalink, 'username': tweet.username,
-		                'text': tweet.text, 'clean_text':tweet_cleantext, 'sentiment':sentiment,
-		                'retweets': tweet.retweets, 'favorites': tweet.favorites, 'mentions': tweet.mentions,
+		                'text': tweet.text, 'clean_text':tweet_cleantext, 'sentiment_vader':sentiment_vader,
+		                'sentiment_afinn':sentiment_afinn,'retweets': tweet.retweets, 'favorites': tweet.favorites, 'mentions': tweet.mentions,
 		                'hashtags': tweet.hashtags, 'geo': tweet.geo}, ignore_index=True)
 		# Pickle it regularly just incase it falls over
 		df.to_pickle(directory+'tweets.pickle')
 
+df.to_csv(directory+'tweets.csv')
+# Resample to per day
+df_day = df['sentiment_vader']
+df_day.index = df['date']
+df_day.sort_index()
+df_day = df_day.resample('1d').mean()
+df_day.plot()
+plt.show()
+
+
 # Test the NLTK VADER approach on the twitter corpus. Do we accurately retrieve +ve or -ve reviews?
 # http://www.nltk.org/api/nltk.sentiment.html
-
 false_detections = 0
 
 tweets_neg = twitter_samples.strings('negative_tweets.json')
@@ -59,3 +79,13 @@ for string in tweets_pos:
 	    false_detections += 1
 
 print 'accuracy: ', 100 - (float(false_detections) / (len(tweets_pos) +len(tweets_neg))*100)
+
+# Check we are actually getting the top tweets
+tweetCriteria = got.manager.TweetCriteria().setQuerySearch('Bitcoin').setSince("2017-01-01").setUntil(
+	"2017-12-31").setMaxTweets(1).setTopTweets(True)
+tweet = got.manager.TweetManager.getTweets(tweetCriteria)[0]
+
+tweetCriteria = got.manager.TweetCriteria().setQuerySearch("Bitcoin").setTopTweets(True).setMaxTweets(10).setSince("2017-01-01").setUntil(
+	"2017-12-31")
+# first one
+tweet = got.manager.TweetManager.getTweets(tweetCriteria)[0]
