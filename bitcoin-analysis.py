@@ -105,17 +105,26 @@ plt.clf()
 # Volatility Histogram
 #http://www.quantatrisk.com/2016/12/08/conditional-value-at-risk-normal-student-t-var-model-python/
 # calculate daily logarithmic return
+#btc_data_year['returns'] = (btc_data_year['Close']/btc_data_year['Close'].shift(-1)) - 1
+#btc_hist = btc_data_year['returns'].copy()
+
 btc_data['returns'] = (btc_data['Close']/btc_data['Close'].shift(-1)) - 1
 btc_hist = btc_data['returns'].copy()
 btc_hist = btc_hist.replace([np.inf, -np.inf, 0.0, -1.0], np.nan)
 btc_hist = btc_hist.replace([np.inf, -np.inf], np.nan).dropna(how="all")
 
-ret = np.array(btc_hist)   # compute daily returns
+data = web.DataReader("IBM", data_source='google',
+                  start='2010-12-01', end='2015-12-01')['Close']
+
+cp = np.array(data.values)  # daily adj-close prices
+ret = cp[1:]/cp[:-1] - 1    # compute daily returns
+
+#ret = np.array(btc_hist)   # compute daily returns
 
 # N(x; mu, sig) best fit (finding: mu, stdev)
 mu_norm, sig_norm = norm.fit(ret)
 dx = 0.0001  # resolution
-x = np.arange(-0.2, 0.2, dx)
+x = np.arange(-1.0, 10, dx)
 pdf = norm.pdf(x, mu_norm, sig_norm)
 print("Sample mean  = %.5f" % mu_norm)
 print("Sample stdev = %.5f" % sig_norm)
@@ -130,7 +139,6 @@ print("nu = %.2f" % nu)
 print()
 
 # Compute VaRs and CVaRs
-
 h = 1
 alpha = 0.01  # significance level
 lev = 100*(1-alpha)
