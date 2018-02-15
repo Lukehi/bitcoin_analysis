@@ -2,7 +2,9 @@
 
 import quandl
 import pickle
+from scipy.stats import skew, kurtosis, kurtosistest
 import matplotlib.pyplot as plt
+from scipy.stats import norm, t
 import logging
 from dateutil.relativedelta import relativedelta
 import datetime
@@ -10,6 +12,7 @@ import fbprophet
 import numpy as np
 from fbprophet.diagnostics import cross_validation
 import pandas as pd
+import pandas_datareader.data as web
 
 # Configure Logging
 fmt = '%(asctime)s -- %(levelname)s -- %(module)s %(lineno)d -- %(message)s'
@@ -108,23 +111,28 @@ plt.clf()
 #btc_data_year['returns'] = (btc_data_year['Close']/btc_data_year['Close'].shift(-1)) - 1
 #btc_hist = btc_data_year['returns'].copy()
 
+btc_data = btc_data.replace([np.inf, -np.inf, 0.0, -1.0], np.nan)
+btc_data = btc_data.replace([np.inf, -np.inf], np.nan).dropna(how="all")
 btc_data['returns'] = (btc_data['Close']/btc_data['Close'].shift(-1)) - 1
 btc_hist = btc_data['returns'].copy()
-btc_hist = btc_hist.replace([np.inf, -np.inf, 0.0, -1.0], np.nan)
 btc_hist = btc_hist.replace([np.inf, -np.inf], np.nan).dropna(how="all")
 
-data = web.DataReader("IBM", data_source='google',
-                  start='2010-12-01', end='2015-12-01')['Close']
 
-cp = np.array(data.values)  # daily adj-close prices
-ret = cp[1:]/cp[:-1] - 1    # compute daily returns
+#btc_hist = btc_hist.replace([np.inf, -np.inf, 0.0, -1.0], np.nan)
+#btc_hist = btc_hist.replace([np.inf, -np.inf], np.nan).dropna(how="all")
 
-#ret = np.array(btc_hist)   # compute daily returns
+#data = web.DataReader("IBM", data_source='google',
+#                  start='2010-12-01', end='2015-12-01')['Close']
+
+#cp = np.array(data.values)  # daily adj-close prices
+#ret = cp[1:]/cp[:-1] - 1    # compute daily returns
+
+ret = np.array(btc_hist)   # compute daily returns
 
 # N(x; mu, sig) best fit (finding: mu, stdev)
 mu_norm, sig_norm = norm.fit(ret)
 dx = 0.0001  # resolution
-x = np.arange(-1.0, 10, dx)
+x = np.arange(min(ret), max(ret), dx)
 pdf = norm.pdf(x, mu_norm, sig_norm)
 print("Sample mean  = %.5f" % mu_norm)
 print("Sample stdev = %.5f" % sig_norm)
@@ -137,11 +145,10 @@ nu = np.round(nu)
 pdf2 = t.pdf(x, nu, mu_t, sig_t)
 print("nu = %.2f" % nu)
 print()
-
 # Compute VaRs and CVaRs
-h = 1
+h = 1.0
 alpha = 0.01  # significance level
-lev = 100*(1-alpha)
+lev = 100.0*(1-alpha)
 xanu = t.ppf(alpha, nu)
 
 CVaR_n = alpha**-1 * norm.pdf(norm.ppf(alpha))*sig_norm - mu_norm
@@ -156,10 +163,11 @@ logger.info("%g%% %g-day Normal t CVaR  = %.2f%%" % (lev, h, CVaR_n*100))
 logger.info("%g%% %g-day Student t VaR  = %.2f%%" % (lev, h, VaR_t *100))
 logger.info("%g%% %g-day Student t CVaR = %.2f%%" % (lev, h, CVaR_t*100))
 
+
 plt.figure(num=1, figsize=(11, 6))
 grey = .77, .77, .77
 # main figure
-plt.hist(ret, bins=100, normed=True, color=grey, edgecolor='none')
+plt.hist(ret, bins=200, normed=True, color=grey, edgecolor='none')
 plt.hold(True)
 plt.axis("tight")
 plt.plot(x, pdf, 'b', label="Normal PDF fit")
@@ -175,10 +183,12 @@ plt.text(-0.18, 18, "%g%% %g-day Normal VaR       = %.2f%%" % (lev, h, VaR_n*100
 plt.text(-0.18, 17, "%g%% %g-day Normal t CVaR  = %.2f%%" % (lev, h, CVaR_n*100))
 plt.text(-0.18, 16, "%g%% %g-day Student t VaR   = %.2f%%" % (lev, h, VaR_t *100))
 plt.text(-0.18, 15, "%g%% %g-day Student t CVaR = %.2f%%" % (lev, h, CVaR_t*100))
+plt.text(-0.18, 14, "Skewness = %.2f" % skew(ret))
+plt.text(-0.18, 13, "Kurtosis = %.2f" % kurtosis(ret, fisher=False))
 
 # inset
 a = plt.axes([.60, .40, .25, .35])
-plt.hist(ret, bins=100, normed=True, color=grey, edgecolor='none')
+plt.hist(ret, bins=200, normed=True, color=grey, edgecolor='none')
 plt.hold(True)
 plt.plot(x, pdf, 'b')
 plt.hold(True)
@@ -195,6 +205,8 @@ plt.xlim([-0.8, 0.1])
 plt.savefig(directory+'Images/btc_volatility.png')
 plt.clf()
 
+# Show residuals
+residual_ret_norm = ret-pdf
 
 # Short term and long term trends?
 

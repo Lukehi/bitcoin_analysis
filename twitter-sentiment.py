@@ -12,6 +12,19 @@ from dateutil import rrule
 from datetime import datetime, timedelta
 from pandas import Series, DataFrame, Panel
 
+
+from random import randrange
+
+
+def random_date(start,l):
+#Randomly get a start time
+   current = start
+   while l >= 0:
+      curr = current + timedelta(minutes=randrange(60))
+      yield curr
+      l-=1
+
+
 directory = '/Users/lukehindson/PycharmProjects/Bitcoin/'
 
 # Setup blank dataframe to hold tweet output
@@ -19,22 +32,35 @@ columns = ['date','id', 'permalink', 'username', 'text','clean_text', 'retweets'
            'geo', 'sentiment_vader', 'sentiment_afinn']
 df = pd.DataFrame(columns=columns)
 
-# Extract top 50 tweets for each day from start to now. Store results in df
-# Might need to be a bit smarter than this and extract at random time of the day because selecting the top doesnt seem to work
-now = datetime.now()
-#start = datetime.strptime('2011-09-13', '%Y-%m-%d')
-start = now-timedelta(days=5)
+# Read in a list of top financial and BTC based twitter usernames
 
-#now = start+timedelta(days=365)
+
+# Extract 50 random tweets for each day from start to now that have been retweet or favourited. Store results in df
+# Might need to be a bit smarter than this and extract at random time of the day because selecting the top doesnt seem to work
+
+# Must be able to select random tweets.... Need to probably alter the TweetManager.py code
+
+# For test define a specific time period
+start = datetime.strptime('2011-09-13', '%Y-%m-%d')
+now = start+timedelta(days=10)
+
+#start = now-timedelta(days=5)
+#now = datetime.now()
+
 
 sid = SentimentIntensityAnalyzer()
 afinn = Afinn()
 
 for dt in rrule.rrule(rrule.DAILY, dtstart=start, until=now):
 	print dt
+	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince('2017-11-13').setUntil('2017-11-14').setMaxTweets(40).setTopTweets(True)
+
+	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince('2016-02-01').setUntil('2016-02-02').setMaxTweets(100)
+	tweets = got.manager.TweetManager.getTweets(tweetCriteria)
+
+
 	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince(dt.strftime('%Y-%m-%d'))\
 		.setUntil((dt+timedelta(days=1)).strftime('%Y-%m-%d')).setTopTweets(True).setMaxTweets(50)
-	tweets = got.manager.TweetManager.getTweets(tweetCriteria)
 	# write the output to pandas
 	for tweet in tweets:
 		print tweet.date
