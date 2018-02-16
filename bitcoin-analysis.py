@@ -11,8 +11,6 @@ import datetime
 import fbprophet
 import numpy as np
 from fbprophet.diagnostics import cross_validation
-import pandas as pd
-import pandas_datareader.data as web
 
 # Configure Logging
 fmt = '%(asctime)s -- %(levelname)s -- %(module)s %(lineno)d -- %(message)s'
@@ -26,7 +24,7 @@ def btc_quandl(id):
     '''Grab and store Quandal data for bitcoin value'''
     quandl.ApiConfig.api_key = 'ftosgLxbsFdzpqFzPCCH'
     # Try to grab a pickled version if it exists
-    cache_path = '{}.pkl'.format(id).replace('/','-')
+    cache_path = directory+'Data/'+'{}.pkl'.format(id).replace('/','-')
     try:
         f = open(cache_path, 'rb')
         df = pickle.load(f)
@@ -41,6 +39,7 @@ def btc_quandl(id):
 
 # Grab bitcoin btc_data from quandl
 btc_data = btc_quandl('BCHARTS/BITSTAMPUSD')
+
 # Extract the last year of data
 btc_data_year = btc_data[btc_data.index > (datetime.datetime.now() - relativedelta(years=1)).strftime('%Y-%m-%d')]
 

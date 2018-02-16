@@ -1,5 +1,4 @@
 # Twitter Bitcoin sentiment analysis
-
 import got
 from nltk.sentiment.util import *
 import pandas as pd
@@ -11,19 +10,9 @@ import matplotlib.pyplot as plt
 from dateutil import rrule
 from datetime import datetime, timedelta
 from pandas import Series, DataFrame, Panel
-
+import unicodedata
 
 from random import randrange
-
-
-def random_date(start,l):
-#Randomly get a start time
-   current = start
-   while l >= 0:
-      curr = current + timedelta(minutes=randrange(60))
-      yield curr
-      l-=1
-
 
 directory = '/Users/lukehindson/PycharmProjects/Bitcoin/'
 
@@ -32,38 +21,28 @@ columns = ['date','id', 'permalink', 'username', 'text','clean_text', 'retweets'
            'geo', 'sentiment_vader', 'sentiment_afinn']
 df = pd.DataFrame(columns=columns)
 
-# Read in a list of top financial and BTC based twitter usernames
-
-
-# Extract 50 random tweets for each day from start to now that have been retweet or favourited. Store results in df
-# Might need to be a bit smarter than this and extract at random time of the day because selecting the top doesnt seem to work
-
-# Must be able to select random tweets.... Need to probably alter the TweetManager.py code
-
 # For test define a specific time period
 start = datetime.strptime('2011-09-13', '%Y-%m-%d')
-now = start+timedelta(days=10)
+now = datetime.now()
 
+#now = start+timedelta(days=1)
 #start = now-timedelta(days=5)
-#now = datetime.now()
-
 
 sid = SentimentIntensityAnalyzer()
 afinn = Afinn()
 
+#  For each day  grab 1000 tweets
+count = 1
 for dt in rrule.rrule(rrule.DAILY, dtstart=start, until=now):
 	print dt
-	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince('2017-11-13').setUntil('2017-11-14').setMaxTweets(40).setTopTweets(True)
-
-	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince('2016-02-01').setUntil('2016-02-02').setMaxTweets(100)
-	tweets = got.manager.TweetManager.getTweets(tweetCriteria)
-
+	#tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince('2011-09-13').setUntil('2015-02-04').setMaxTweets(1000)
 
 	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince(dt.strftime('%Y-%m-%d'))\
-		.setUntil((dt+timedelta(days=1)).strftime('%Y-%m-%d')).setTopTweets(True).setMaxTweets(50)
+		.setUntil((dt+timedelta(days=1)).strftime('%Y-%m-%d')).setMaxTweets(1000)
+	tweets = got.manager.TweetManager.getTweets(tweetCriteria)
+
 	# write the output to pandas
 	for tweet in tweets:
-		print tweet.date
 		if type(tweet.text) == unicode:
 			tweet_text = unicodedata.normalize('NFKD', tweet.text).encode('ascii','ignore')
 		else:
@@ -75,10 +54,12 @@ for dt in rrule.rrule(rrule.DAILY, dtstart=start, until=now):
 		                'text': tweet.text, 'clean_text':tweet_cleantext, 'sentiment_vader':sentiment_vader,
 		                'sentiment_afinn':sentiment_afinn,'retweets': tweet.retweets, 'favorites': tweet.favorites, 'mentions': tweet.mentions,
 		                'hashtags': tweet.hashtags, 'geo': tweet.geo}, ignore_index=True)
-		# Pickle it regularly just incase it falls over
-		df.to_pickle(directory+'tweets.pickle')
+	count += 1
+	# Save each 30 days to a csv and clear the df
+	if count % 30 == 0:
+		df.to_csv(directory + 'Tweets/tweets_'+str(count)+'.csv', encoding='utf-8')
+		df = pd.DataFrame(columns=columns)
 
-df.to_csv(directory+'tweets.csv')
 # Resample to per day
 df_day = df['sentiment_vader']
 df_day.index = df['date']
