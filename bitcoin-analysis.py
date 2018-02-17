@@ -76,12 +76,37 @@ btc_fbprohpet = btc_fbprohpet[btc_fbprohpet['Weighted Price'] != 0]
 
 # Fit to the log of the data
 btc_fbprohpet['y'] = np.log(btc_fbprohpet['Weighted Price'])
-btc_data_prophet_log = fbprophet.Prophet(yearly_seasonality=True, weekly_seasonality=True)
+btc_data_prophet_log = fbprophet.Prophet(yearly_seasonality=True, weekly_seasonality=True, changepoint_prior_scale=0.15)
 btc_data_prophet_log.fit(btc_fbprohpet)
 btc_data_forecast_log = btc_data_prophet_log.make_future_dataframe(periods=365*2, freq='D')
 btc_data_forecast_log = btc_data_prophet_log.predict(btc_data_forecast_log)
 
+# Identify change points
+btc_changepoints = btc_data_prophet_log.changepoints
+# Work out if they are +ve or -ve
+c_data = btc_fbprohpet.ix[btc_changepoints, :]
+deltas = btc_data_prophet_log.params['delta'][0]
+c_data['delta'] = deltas
+c_data['abs_delta'] = abs(c_data['delta'])
+# Sort the values by maximum change
+c_data = c_data.sort_values(by='abs_delta', ascending=False)
+
+# Limit to 10 largest changepoints
+c_data = c_data[:10]
+
+# Separate into negative and positive changepoints
+cpos_data = c_data[c_data['delta'] > 0]
+cpos_data = cpos_data['delta']
+cneg_data = c_data[c_data['delta'] < 0]
+cneg_data = cneg_data['delta']
+
+# Write out to csv
+cpos_data.to_csv(directory+'Data/Bitcoin-analysis/cpos.csv')
+cneg_data.to_csv(directory+'Data/Bitcoin-analysis/cneg.csv')
+
 btc_data_prophet_log.plot(btc_data_forecast_log, xlabel = 'Date', ylabel = 'LOG Weighted Price ($)')
+plt.vlines(cpos_data.index, ymin = 0, ymax= 10, colors = 'g', linewidth=0.6, linestyles = 'dashed', label = 'Changepoints')
+plt.vlines(cneg_data.index, ymin = 0, ymax= 10, colors = 'r', linewidth=0.6, linestyles = 'dashed', label = 'Changepoints')
 plt.savefig(directory+'Images/btc_data_forecast.png')
 plt.clf()
 # Plot the components
@@ -89,6 +114,7 @@ btc_data_prophet_log.plot_components(btc_data_forecast_log)
 plt.savefig(directory+'Images/btc_data_components.png')
 plt.clf()
 
+# Do the same for the Volume
 btc_fbprohpet['y'] = np.log(btc_fbprohpet['Volume (Currency)'])
 btc_data_prophet_log = fbprophet.Prophet(yearly_seasonality=True, weekly_seasonality=True)
 btc_data_prophet_log.fit(btc_fbprohpet)
@@ -103,6 +129,11 @@ btc_data_prophet_log.plot_components(btc_data_forecast_log)
 plt.savefig(directory+'Images/btc_volume_components.png')
 plt.clf()
 # The components / seasonality probably isnt reliable given the big jumps we see
+
+
+
+
+
 
 # Volatility Histogram
 #http://www.quantatrisk.com/2016/12/08/conditional-value-at-risk-normal-student-t-var-model-python/

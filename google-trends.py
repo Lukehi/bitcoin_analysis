@@ -2,8 +2,8 @@ from datetime import datetime, timedelta
 from pytrends.request import TrendReq
 import pandas as pd
 import os
-path = '/Users/lukehindson/PycharmProjects/Bitcoin/Data/Google'
-os.chdir(path)
+directory = '/Users/lukehindson/PycharmProjects/Bitcoin/Data/Google'
+os.chdir(directory)
 filename = 'btc_googletrends.csv'
 
 # Max requests is 270 records. Include overlap for scaling
@@ -11,7 +11,7 @@ maxstep = 269
 overlap = 10
 step = maxstep - overlap + 1
 kw_list = ['bitcoin','btc']
-start_date = datetime(2011, 9, 13).date()
+start_date = datetime(2012, 9, 13).date()
 
 # Login to Google.
 pytrend = TrendReq(hl='en-US,tz=360')
