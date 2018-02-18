@@ -29,7 +29,7 @@ columns = ['date','id', 'permalink', 'username', 'text','clean_text', 'retweets'
 df = pd.DataFrame(columns=columns)
 
 # Define a specific time period
-start = datetime.strptime('2013-10-19', '%Y-%m-%d')
+start = datetime.strptime('2016-12-19', '%Y-%m-%d')
 now = datetime.now()
 # Testing pars
 #now = start+timedelta(days=1)
@@ -40,12 +40,12 @@ sid = SentimentIntensityAnalyzer()
 afinn = Afinn()
 
 #  For each day  grab 1000 tweets. Put this into its own function
-count = 765
+count = 1920
 for dt in rrule.rrule(rrule.DAILY, dtstart=start, until=now):
 	print dt
 	# Testing pars
-	#tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince('2011-10-19').setUntil('2013-10-20').setMaxTweets(1000)
-	#tweets = got.manager.TweetManager.getTweets(tweetCriteria)
+	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince('2011-10-19').setUntil('2013-10-20').setMaxTweets(1000)
+	tweets = got.manager.TweetManager.getTweets(tweetCriteria)
 
 	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince(dt.strftime('%Y-%m-%d'))\
 		.setUntil((dt+timedelta(days=1)).strftime('%Y-%m-%d')).setMaxTweets(1000)
@@ -82,7 +82,7 @@ for dt in rrule.rrule(rrule.DAILY, dtstart=start, until=now):
 # Collate the data frames into data and sentiment
 # Setup blank dataframe to hold tweet output
 csv_files = []
-for file in glob.glob(directory + 'Tweets/*.csv'):
+for file in glob.glob(directory + 'Data/Twitter/Tweets/*.csv'):
     csv_files.append(file)
 
 # Reorder based on count index
@@ -91,7 +91,7 @@ csv_files = sorted_nicely(csv_files)
 # Read them in and append results to a combined df
 df = pd.read_csv(csv_files[0], usecols=['date','sentiment_vader','sentiment_afinn'])
 # Drop all the rows with 0 sentiment
-df = df[df.sentiment_vader != 0]
+#df = df[df.sentiment_vader != 0]
 # Need to really do some additional filtering like identifying bots.
 for file in csv_files:
 	print file
@@ -145,12 +145,19 @@ for file in csv_files:
 df_sentiment = df_sentiment.set_index(pd.to_datetime(df_sentiment.date))
 df_sentiment.to_csv(directory+'Data/Twitter/sentiment_vader_all.csv')
 
-# Resample every 3 days
+# Resample every 3 days. remove neutral
+df_sentiment3d = df_sentiment[df_sentiment['neu'] != 1.0]
 df_sentiment3d = df_sentiment.resample('3d').mean()
 
 # Write out the results to a csv
 df_sentiment3d.to_csv(directory+'Data/Twitter/sentiment_vader_all_3d.csv')
 
+# Resample every 1 day. remove neutral
+df_sentiment1d = df_sentiment[df_sentiment['neu'] != 1.0]
+df_sentiment1d = df_sentiment.resample('d').mean()
+
+# Write out the results to a csv
+df_sentiment1d.to_csv(directory+'Data/Twitter/sentiment_vader_all_1d.csv')
 
 
 
