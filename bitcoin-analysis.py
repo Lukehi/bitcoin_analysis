@@ -11,6 +11,7 @@ import datetime
 import fbprophet
 import numpy as np
 from fbprophet.diagnostics import cross_validation
+import os
 
 # Configure Logging
 fmt = '%(asctime)s -- %(levelname)s -- %(module)s %(lineno)d -- %(message)s'
@@ -79,7 +80,12 @@ btc_fbprohpet = btc_fbprohpet[btc_fbprohpet['Weighted Price'] != 0]
 # Fit to the log of the data
 btc_fbprohpet['y'] = np.log(btc_fbprohpet['Weighted Price'])
 btc_data_prophet_log = fbprophet.Prophet(yearly_seasonality=True, weekly_seasonality=True, changepoint_prior_scale=0.15)
-btc_data_prophet_log.fit(btc_fbprohpet)
+# Pickle
+if os.path.isfile(directory+'Data/Models/fbprophet_logweightprice.model.sav'):
+    btc_data_prophet_log = pickle.load(open(directory+'Data/Models/fbprophet_logweightprice.model.sav', 'rb'))
+else:
+    btc_data_prophet_log.fit(btc_fbprohpet)
+    pickle.dump(btc_data_prophet_log, open(directory+'Data/Models/fbprophet_logweightprice.model.sav', 'wb'))
 btc_data_forecast_log = btc_data_prophet_log.make_future_dataframe(periods=365*2, freq='D')
 btc_data_forecast_log = btc_data_prophet_log.predict(btc_data_forecast_log)
 
@@ -122,7 +128,14 @@ plt.clf()
 # Do the same for the Volume
 btc_fbprohpet['y'] = np.log(btc_fbprohpet['Volume (Currency)'])
 btc_data_prophet_log = fbprophet.Prophet(yearly_seasonality=True, weekly_seasonality=False)
-btc_data_prophet_log.fit(btc_fbprohpet)
+# Pickle
+if os.path.isfile(directory+'Data/Models/fbprophet_logvolume.model.sav'):
+    btc_data_prophet_log = pickle.load(open(directory+'Data/Models/fbprophet_logvolume.model.sav', 'rb'))
+else:
+    btc_data_prophet_log.fit(btc_fbprohpet)
+    pickle.dump(btc_data_prophet_log, open(directory+'Data/Models/fbprophet_logvolume.model.sav', 'wb'))
+
+
 btc_data_forecast_log = btc_data_prophet_log.make_future_dataframe(periods=365*2, freq='D')
 btc_data_forecast_log = btc_data_prophet_log.predict(btc_data_forecast_log)
 
@@ -134,6 +147,29 @@ btc_data_prophet_log.plot_components(btc_data_forecast_log)
 plt.savefig(directory+'Images/btc_volume_components.png')
 plt.clf()
 # The components / seasonality probably isnt reliable given the big jumps we see
+
+# Fit to the non-log data? Save the models using pickle
+btc_fbprohpet['y'] = btc_fbprohpet['Weighted Price']
+btc_data_prophet = fbprophet.Prophet(yearly_seasonality=True, weekly_seasonality=False, changepoint_prior_scale=0.15)
+# Pickle
+if os.path.isfile(directory+'Data/Models/fbprophet_weightedprice.model.sav'):
+    btc_data_prophet = pickle.load(open(directory+'Data/Models/fbprophet_weightedprice.model.sav', 'rb'))
+else:
+    btc_data_prophet.fit(btc_fbprohpet)
+    pickle.dump(btc_data_prophet, open(directory+'Data/Models/fbprophet_weightedprice.model.sav', 'wb'))
+
+
+btc_data_forecast = btc_data_prophet.make_future_dataframe(periods=365*2, freq='D')
+btc_data_forecast = btc_data_prophet.predict(btc_data_forecast)
+plt.plot(btc_data_forecast['ds'],btc_data_forecast['trend'])
+btc_data_prophet.plot(btc_data_forecast, xlabel = 'Date', ylabel = 'Weighted Price ($)')
+
+plt.savefig(directory+'Images/btc_weightedprice.png')
+plt.clf()
+# Plot the components
+btc_data_prophet.plot_components(btc_data_forecast)
+plt.savefig(directory+'Images/btc_weight_components.png')
+plt.clf()
 
 
 # Volatility Histogram

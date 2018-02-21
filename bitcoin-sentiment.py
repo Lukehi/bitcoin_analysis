@@ -1,6 +1,8 @@
 # Combine the results of bitcoin-analysis.py, twitter-sentiment.py, and google-trends.py
 # Search for correlation between the sentiment trends and BTC price / volume.
 
+# TODO: Tidy up code
+
 import pandas as pd
 import quandl
 import datetime
@@ -11,9 +13,8 @@ import numpy as np
 from sklearn import preprocessing, cross_validation, neighbors,svm
 import optunity
 import optunity.metrics
-
-from mpl_toolkits.mplot3d import Axes3D
-
+import fbprophet
+import os
 
 
 # Set project root directory
@@ -94,19 +95,96 @@ plt.legend()
 plt.savefig(directory+'Images/google_twitter_btcchange.png')
 plt.clf()
 
-#plt.vlines(btc_cpos.index, ymin = 0, ymax= 0.005, colors = 'g', linewidth=0.6, linestyles = 'dashed', label = 'Changepoints')
-#plt.vlines(btc_cneg.index, ymin = 0, ymax= 0.005, colors = 'r', linewidth=0.6, linestyles = 'dashed', label = 'Changepoints')
 plt.legend()
 plt.savefig(directory+'Images/google_twitter_btcchange.png')
 
 
 # Measure correlation
 # Note - need to probably make sure that the time series are stationary by first subtracting the overall trend
+btc_data_3d = btc_data[(btc_data.index >= '2011-10-12') & (btc_data.index <= '2016-12-18')]
+btc_data_3d = btc_data_3d.resample('3d').mean()
+
 btc_data_3d['Weighted Price'].corr(btc_data_3d['Weighted Price'].shift(1))
 btc_data_3d['Weighted Price'].corr(btc_data_3d['Weighted Price'].shift(100))
 
+google_data_3d = google_data[(google_data.index >= '2011-10-12') & (google_data.index <= '2016-12-18')]
+google_data_3d = google_data_3d.resample('3d').mean()
+
 btc_data_3d['Weighted Price_norm'].corr(google_data_3d['bitcoin_norm'].shift(1))
-btc_data_3d['Weighted Price_norm'].corr((twitter_data_3d['compound'].shift(3))
+
+twitter_data_3d = twitter_data[(twitter_data.index >= '2011-10-12') & (twitter_data.index <= '2016-12-18')]
+twitter_data_3d = twitter_data_3d.resample('3d').mean()
+
+btc_data_3d['Weighted Price_norm'].corr(twitter_data_3d['compound'].shift(3))
+
+# The correlation needs to be measured for time series that have the overall trend removed
+# Load the model for the log price model
+btc_data_prophet_log = pickle.load(open(directory + 'Data/Models/fbprophet_logweightprice.model.sav', 'rb'))
+# subtract the trend from the data
+btc_fbprohpet = btc_data.copy()
+btc_fbprohpet = btc_fbprohpet.reset_index(level=0, inplace=False)
+btc_fbprohpet = btc_fbprohpet.rename(columns={'Date': 'ds'})
+# Drop zero values
+btc_fbprohpet = btc_fbprohpet[btc_fbprohpet['Weighted Price'] != 0]
+
+btc_fbprohpet['y'] = np.log(btc_fbprohpet['Weighted Price'])
+btc_data_forecast_log = btc_data_prophet_log.make_future_dataframe(periods=1, freq='D')
+btc_data_forecast_log = btc_data_prophet_log.predict(btc_data_forecast_log)
+
+btc_data_forecast_log = btc_data_forecast_log.set_index('ds')
+btc_data_forecast_log.index = pd.to_datetime(btc_data_forecast_log.index)
+
+btc_data_notrend = np.log(btc_data['Weighted Price']) - btc_data_forecast_log['trend']
+btc_data_notrend = btc_data_notrend.replace([np.inf, -np.inf, 0.0, -1.0], np.nan)
+btc_data_notrend = btc_data_notrend.replace([np.inf, -np.inf], np.nan).dropna(how='all')
+
+# Make a model for Google
+google_fbprohpet = google_data.copy()
+google_fbprohpet.reset_index(level=0, inplace=True)
+google_fbprohpet = google_fbprohpet.rename(columns={'date': 'ds'})
+# Drop zero values
+google_fbprohpet = google_fbprohpet[google_fbprohpet['bitcoin'] != 0]
+
+# Fit to the log of the data
+google_fbprohpet['y'] = np.log(google_fbprohpet['bitcoin'])
+google_data_prophet_log = fbprophet.Prophet(yearly_seasonality=True, weekly_seasonality=True, changepoint_prior_scale=0.15)
+# Pickle
+if os.path.isfile(directory+'Data/Models/fbprophet_loggoogle.model.sav'):
+    google_data_prophet_log = pickle.load(open(directory+'Data/Models/fbprophet_loggoogle.model.sav', 'rb'))
+else:
+    google_data_prophet_log.fit(google_fbprohpet)
+    pickle.dump(google_data_prophet_log, open(directory+'Data/Models/fbprophet_loggoogle.model.sav', 'wb'))
+google_data_forecast_log = google_data_prophet_log.make_future_dataframe(periods=365*2, freq='D')
+google_data_forecast_log = google_data_prophet_log.predict(google_data_forecast_log)
+google_data_forecast_log = google_data_forecast_log.set_index('ds')
+google_data_forecast_log.index = pd.to_datetime(google_data_forecast_log.index)
+
+google_data_notrend = np.log(google_data['bitcoin']) - google_data_forecast_log['trend']
+google_data_notrend = google_data_notrend.replace([np.inf, -np.inf, 0.0, -1.0], np.nan)
+google_data_notrend = google_data_notrend.replace([np.inf, -np.inf], np.nan).dropna(how='all')
+
+# Make a plot of the detrended data.
+fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(12, 6))
+fig.suptitle('Static BTC and Google Trends', fontsize=16)
+btc_data_notrend.plot(linestyle='-',color='b', label = 'BTC', grid=True, ax=axes[0], sharex=axes[1])
+google_data_notrend.shift(-20).plot(linestyle='-',color='g', label = 'Google', grid=True, ax=axes[1])
+plt.xlabel('Date')
+axes[1].set_ylabel('Log Google Interest')
+axes[0].set_ylabel('Log BTC Weighted Price ($)')
+axes[1].legend(loc='upper left')
+axes[0].legend(loc='upper left')
+plt.savefig(directory+'Images/btc_google_static.png')
+plt.clf()
+
+
+# Measure correlation between detrended google and bitcoin
+pearson = []
+for shift in range(0,200):
+    pearson.append(btc_data_notrend.corr(google_data_notrend.shift(-1*shift)))
+
+plt.plot(range(0,200), pearson)
+
+# Subtract the trend
 
 # Twitter data is too noisy. Can SVM be used?
 

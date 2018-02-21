@@ -15,22 +15,19 @@ import re
 
 
 def sorted_nicely( l ):
-    """ Sort the given iterable in the way that humans expect."""
-    convert = lambda text: int(text) if text.isdigit() else text
-    alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
-    return sorted(l, key = alphanum_key)
+	""" Sort the given iterable in the way that humans expect."""
+	convert = lambda text: int(text) if text.isdigit() else text
+	alphanum_key = lambda key: [ convert(c) for c in re.split('([0-9]+)', key) ]
+	return sorted(l, key = alphanum_key)
 
 # root directory
 directory = '/Users/lukehindson/PycharmProjects/Bitcoin/'
 
 # Setup blank dataframe to hold tweet output
 columns = ['date','id', 'permalink', 'username', 'text','clean_text', 'retweets', 'favorites', 'mentions', 'hashtags',
-           'geo', 'sentiment_vader', 'sentiment_afinn']
+		   'geo', 'sentiment_vader', 'sentiment_vader_neg', 'sentiment_vader_neu', 'sentiment_vader_pos', 'sentiment_afinn']
 df = pd.DataFrame(columns=columns)
 
-# Define a specific time period
-start = datetime.strptime('2016-12-19', '%Y-%m-%d')
-now = datetime.now()
 # Testing pars
 #now = start+timedelta(days=1)
 #start = now-timedelta(days=5)
@@ -39,23 +36,23 @@ now = datetime.now()
 sid = SentimentIntensityAnalyzer()
 afinn = Afinn()
 
-#  For each day  grab 1000 tweets. Put this into its own function
+# Define a specific time period
+start = datetime.strptime('2016-12-19', '%Y-%m-%d')
+now = datetime.now()
+
+#  For each day  grab 1000 tweets
 count = 1920
 for dt in rrule.rrule(rrule.DAILY, dtstart=start, until=now):
-	print dt
-	# Testing pars
-	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince('2011-10-19').setUntil('2013-10-20').setMaxTweets(1000)
-	tweets = got.manager.TweetManager.getTweets(tweetCriteria)
-
+	print 'date:', dt
+	# Define Tweet search criteria
 	tweetCriteria = got.manager.TweetCriteria().setQuerySearch('bitcoin').setSince(dt.strftime('%Y-%m-%d'))\
 		.setUntil((dt+timedelta(days=1)).strftime('%Y-%m-%d')).setMaxTweets(1000)
-	# We may miss days for a wide range of reasons. For now just continue
+	# We may miss days for a wide range of reasons. For now just continue the loop.
 	try:
 		tweets = got.manager.TweetManager.getTweets(tweetCriteria)
 	except:
 		print 'missed: ', dt
 		continue
-
 	# Write the output to dataframe
 	for tweet in tweets:
 		if type(tweet.text) == unicode:
@@ -65,13 +62,15 @@ for dt in rrule.rrule(rrule.DAILY, dtstart=start, until=now):
 		# Clean up the text
 		tweet_cleantext = p.clean(tweet_text).replace('/', '').replace('https', '').replace('http', '')
 		# Calculate sentiment
-		sentiment_vader = sid.polarity_scores(tweet_cleantext)['compound']
+		sentiment_vader = sid.polarity_scores(tweet_cleantext)
 		sentiment_afinn = afinn.score(str(tweet_cleantext))
 		# Enter results to dataframe
 		df = df.append({'date': tweet.date, 'id': tweet.id, 'permalink':tweet.permalink, 'username': tweet.username,
-		                'text': tweet.text, 'clean_text':tweet_cleantext, 'sentiment_vader':sentiment_vader,
-		                'sentiment_afinn':sentiment_afinn,'retweets': tweet.retweets, 'favorites': tweet.favorites, 'mentions': tweet.mentions,
-		                'hashtags': tweet.hashtags, 'geo': tweet.geo}, ignore_index=True)
+						'text': tweet.text, 'clean_text':tweet_cleantext, 'sentiment_vader':sentiment_vader['compound'],
+						'sentiment_vader_neg': sentiment_vader['neg'], 'sentiment_vader_neu': sentiment_vader['neu'],
+						'sentiment_vader_pos': sentiment_vader['pos'], 'sentiment_afinn':sentiment_afinn,
+						'retweets': tweet.retweets, 'favorites': tweet.favorites, 'mentions': tweet.mentions,
+						'hashtags': tweet.hashtags, 'geo': tweet.geo}, ignore_index=True)
 
 	count += 1
 	# Save each 15 days to a csv and clear the df
