@@ -1,7 +1,7 @@
 # Combine the results of bitcoin-analysis.py, twitter-sentiment.py, and google-trends.py
 # Search for correlation between the sentiment trends and BTC price / volume.
 
-# TODO: Tidy up code
+# TODO: Work in progress tidy up code
 
 import pandas as pd
 import quandl
@@ -9,6 +9,7 @@ import datetime
 from dateutil.relativedelta import relativedelta
 import pickle
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 from sklearn import preprocessing, cross_validation, neighbors,svm
 import optunity
@@ -46,8 +47,6 @@ btc_cpos.index = pd.to_datetime(btc_cpos.index)
 btc_cneg = pd.read_csv(directory+'Data/Bitcoin-analysis/cneg.csv', names=['date','delta'])
 btc_cneg = btc_cneg.set_index('date')
 btc_cneg.index = pd.to_datetime(btc_cneg.index)
-# Extract the last year of data
-btc_data_year = btc_data[btc_data.index > (datetime.datetime.now() - relativedelta(years=1)).strftime('%Y-%m-%d')]
 
 # Grab the Google trends data
 google_data = pd.read_csv(directory+'Data/Google/btc_googletrends.csv')
@@ -61,61 +60,59 @@ google_data_year = google_data[google_data.index > (datetime.datetime.now() - re
 # Grab the Twitter sentiment data
 twitter_data = pd.read_csv(directory+'Data/Twitter/sentiment_vader_all_1d.csv')
 twitter_data['compound_norm'] = twitter_data['compound'] / max(twitter_data['compound'])
-#twitter_data = twitter_data.set_index('date')
+twitter_data['sentiment_afinn_norm'] = twitter_data['sentiment_afinn'] / max(twitter_data['sentiment_afinn'])
+twitter_data = twitter_data[twitter_data['neu'] != 1]
 twitter_data = twitter_data.set_index('date')
 twitter_data.index = pd.to_datetime(twitter_data.index)
-twitter_data = twitter_data[twitter_data['neu'] != 1]
+
+start = '2017-10-12'
+stop = '2018-10-12'
+
+# Extract the last year of data
+btc_data_year = btc_data[(btc_data.index >= start) & (btc_data.index <= stop)]
+btc_data_year['Weighted Price_norm'] = btc_data_year['Weighted Price'] / max(btc_data_year['Weighted Price'])
+google_data_year = google_data[(google_data.index >= start) & (google_data.index <= stop)]
+google_data_year['bitcoin_norm'] = google_data_year['bitcoin'] / max(google_data_year['bitcoin'])
+twitter_data_year = twitter_data[(twitter_data.index >= start) & (twitter_data.index <= stop)]
+twitter_data_year['compound_norm'] = twitter_data_year['compound'] / max(twitter_data_year['compound'])
+
 
 # Plot trends vs btc price
 # Make a plot of the historic btc price and volume with google trend
 fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(12, 6))
 fig.suptitle('Bitcoin Price vs. Trends', fontsize=16)
-btc_data['Weighted Price_norm'].plot(linestyle='-',color='b', label = 'BTC', grid=True, ax=axes[0], sharex=axes[1])
-google_data['bitcoin_norm'].plot(linestyle='-',color='g', label = 'Google', grid=True, ax=axes[0])
-btc_data['Weighted Price_norm'].plot(linestyle='-',color='b', label = 'BTC', grid=True, ax=axes[1])
-twitter_data['compound_norm'].plot(linestyle='-',color='r', label = 'Twitter', grid=True, ax=axes[1])
+btc_data_year['Weighted Price_norm'].plot(linestyle='-',color='b', label = 'BTC', grid=True, ax=axes[0], sharex=axes[1])
+google_data_year['bitcoin_norm'].plot(linestyle='-',color='g', label = 'Google', grid=True, ax=axes[0])
+btc_data_year['Weighted Price_norm'].plot(linestyle='-',color='b', label = 'BTC', grid=True, ax=axes[1])
+twitter_data_year['compound_norm'].plot(linestyle='-',color='r', label = 'Twitter', grid=True, ax=axes[1])
+#twitter_data['sentiment_afinn_norm'].plot(linestyle='-',color='r', label = 'Twitter', grid=True, ax=axes[1])
 plt.xlabel('Date')
 axes[0].set_ylabel('Weighted Price ($)')
 axes[1].set_ylabel('Sentiment Score')
 plt.legend()
-plt.savefig(directory+'Images/btc_google_twitter.png')
+plt.savefig(directory+'Images/btc_google_twitter_yr7.png')
 plt.clf()
 # Analyse and search for trends. In the relationships
 # Read in the change points for the weighted price and compare to trends identify change points in trends
 
-fig, axes = plt.subplots(nrows=2, ncols=1, figsize=(12, 6))
-fig.suptitle('Bitcoin Price vs. Trends', fontsize=16)
-google_data['bitcoin'].plot(linestyle='-',color='g', label = 'Google', grid=True,ax=axes[0], sharex=axes[1])
-#twitter_data['neg'].plot(linestyle='-',color='r', label = 'Twitter', grid=True, ax=axes[1])
-twitter_data['pos'].plot(linestyle='-',color='r', label = 'Twitter', grid=True, ax=axes[1])
-plt.xlabel('Date')
-axes[0].set_ylabel('Google Interest')
-axes[1].set_ylabel('Twitter Sentiment Score')
-plt.legend()
-plt.savefig(directory+'Images/google_twitter_btcchange.png')
-plt.clf()
-
-plt.legend()
-plt.savefig(directory+'Images/google_twitter_btcchange.png')
-
 
 # Measure correlation
 # Note - need to probably make sure that the time series are stationary by first subtracting the overall trend
-btc_data_3d = btc_data[(btc_data.index >= '2011-10-12') & (btc_data.index <= '2016-12-18')]
+btc_data_3d = btc_data[(btc_data.index >= '2011-10-12') & (btc_data.index <= '2018-02-13')]
 btc_data_3d = btc_data_3d.resample('3d').mean()
 
 btc_data_3d['Weighted Price'].corr(btc_data_3d['Weighted Price'].shift(1))
 btc_data_3d['Weighted Price'].corr(btc_data_3d['Weighted Price'].shift(100))
 
-google_data_3d = google_data[(google_data.index >= '2011-10-12') & (google_data.index <= '2016-12-18')]
+google_data_3d = google_data[(google_data.index >= '2011-10-12') & (google_data.index <= '2018-02-13')]
 google_data_3d = google_data_3d.resample('3d').mean()
 
 btc_data_3d['Weighted Price_norm'].corr(google_data_3d['bitcoin_norm'].shift(1))
 
-twitter_data_3d = twitter_data[(twitter_data.index >= '2011-10-12') & (twitter_data.index <= '2016-12-18')]
+twitter_data_3d = twitter_data[(twitter_data.index >= '2011-10-12') & (twitter_data.index <= '2018-02-13')]
 twitter_data_3d = twitter_data_3d.resample('3d').mean()
 
-btc_data_3d['Weighted Price_norm'].corr(twitter_data_3d['compound'].shift(3))
+btc_data_3d['Weighted Price_norm'].corr(twitter_data_3d['compound'].shift(1))
 
 # The correlation needs to be measured for time series that have the overall trend removed
 # Load the model for the log price model
@@ -176,17 +173,83 @@ axes[0].legend(loc='upper left')
 plt.savefig(directory+'Images/btc_google_static.png')
 plt.clf()
 
+# Granger Causality
+x =zip(btc_data_notrend.values, google_data_notrend.values)
+gc = grangercausalitytests(x,10)
 
 # Measure correlation between detrended google and bitcoin
 pearson = []
-for shift in range(0,200):
+for shift in range(0,30):
     pearson.append(btc_data_notrend.corr(google_data_notrend.shift(-1*shift)))
 
-plt.plot(range(0,200), pearson)
-
+plt.plot(range(0,30), pearson)
+plt.ylabel('Correlation Coefficient')
+plt.xlabel('Shift (days)')
+plt.title('Google vs. BTC Correlation')
+plt.savefig(directory+'Images/btc_google_correlation.png')
+plt.clf()
 # Subtract the trend
 
-# Twitter data is too noisy. Can SVM be used?
+# Twitter data is too noisy. Can SVM be used? Make a basic model.
+# Features are the twitter sentiment.
+# Model 15 days where stock starts off decreasing then rises
+# neg,neu,pos
+X = np.array([[0.8,0.1,0.0],[0.7,0.2,0.1],[0.5,0.5,0.0],[0.2,0.3,0.5],[0.1,0.2,0.7],[0.0,0.1,0.9],[0.0,0.2,0.8],[0.2,0.1,0.7],
+[0.0,0.1,0.8],[0.0,0.5,0.5],[0.6,0.3,0.1],[0.8,0.2,0.0],[0.1,0.3,0.6],[0.1,0.3,0.5],[0.0,0.1,0.9],
+     [0.5, 0.3, 0.2], [0.2, 0.3, 0.5], [0.1, 0.3, 0.6], [0.0, 0.0, 1.0], [0.1, 0.2, 0.7], [0.8, 0.2, 0.0],
+     [0.8, 0.2, 0.0], [0.7, 0.2, 0.1],
+     [0.9, 0.1, 0.0], [0.8, 0.1, 0.1], [0.1, 0.3, 0.7], [0.2, 0.2, 0.6], [0.7, 0.3, 0.0], [0.6, 0.1, 0.3],
+     [0.8, 0.1, 0.1]])
+X = np.random.normal(X,0.1)
+# Labels are whether or not the price goes up +1 or down -1
+y = np.array([-1,-1,-1,1,1,1,1,1,1,1,-1,-1,1,1,1,-1,1,1,1,1,-1,-1,-1,-1,-1,1,1,-1,-1,-1])
+
+for index, item in enumerate(y):
+    print item, X[index]
+# Split training and testing
+X_train, X_test, y_train, y_test = cross_validation.train_test_split(X, y, test_size=0.3)
+
+
+clf = svm.SVC(kernel='linear')
+clf.fit(X_train, y_train)
+
+accuracy = clf.score(X_test, y_test)
+print accuracy
+example_measures = np.array([[0.2,0.0,0.8]])
+prediction = clf.predict(example_measures)
+print prediction
+
+# Given the model can we correctly predict the btc change points?
+z = lambda x,y: (-clf.intercept_[0]-clf.coef_[0][0]*x-clf.coef_[0][1]) / clf.coef_[0][2]
+
+tmp = np.linspace(0,1,100)
+xg,yg = np.meshgrid(tmp,tmp)
+
+# Visualise 3D
+X1 = X[:,0][y == 1]
+X0 = X[:,0][y == -1]
+Y1 = X[:,1][y == 1]
+Y0 = X[:,1][y == -1]
+Z1 = X[:,2][y == 1]
+Z0 = X[:,2][y == -1]
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(X1, Y1, Z1, color='red')
+ax.scatter(X0, Y0, Z0, color='blue')
+ax.plot_surface(xg, yg, z(xg,yg))
+ax.set_xlabel('Negative')
+ax.set_ylabel('Neutral')
+ax.set_zlabel('Positive')
+ax.view_init(25, 45)
+plt.axis('tight')
+plt.savefig(directory+'Images/sentimentSVM_test.png.png')
+
+# rotate the axes and update
+for angle in range(0, 360):
+    ax.view_init(30, angle)
+    plt.draw()
+    plt.pause(.001)
 
 
 
@@ -196,6 +259,15 @@ plt.plot(range(0,200), pearson)
 
 
 
+
+
+
+
+
+
+
+
+######################
 
 
 # Perform analytical tests to look for correlation
@@ -209,8 +281,10 @@ plt.plot(range(0,200), pearson)
 twitter_data_3d = pd.read_csv(directory+'Data/Twitter/sentiment_vader_all_3d.csv')
 twitter_data_3d = twitter_data_3d.set_index('date')
 twitter_data_3d.index = pd.to_datetime(twitter_data_3d.index)
+twitter_data_3d = twitter_data[(twitter_data.index >= '2011-10-12') & (twitter_data.index <= '2016-12-18')]
+twitter_data_3d = twitter_data_3d.resample('3d').mean()
 
-X = df_sentiment3d[list(['neg','neu','pos'])].values
+X = twitter_data_3d[list(['neg','neu','pos'])].values
 
 # Try the google trends
 google_data_3d = google_data[(google_data.index >= '2011-10-12') & (google_data.index <= '2016-12-18')]
@@ -241,7 +315,6 @@ btc_data_3d['label'][btc_data_3d['Weighted Price'] <= btc_data_3d['Weighted Pric
 y = btc_data_3d['label']
 y[-1] = -1
 y = np.asarray(y.astype('int'))
-y = y[:-1]
 # Split training and testing
 X_train, X_test, y_train, y_test = cross_validation.train_test_split(X, y, test_size=0.3)
 
@@ -249,17 +322,17 @@ X_train, X_test, y_train, y_test = cross_validation.train_test_split(X, y, test_
 #http://optunity.readthedocs.io/en/latest/examples/python/sklearn/svc.html
 
 # score function: twice iterated 10-fold cross-validated accuracy
-@optunity.cross_validated(x=data, y=labels, num_folds=10, num_iter=2)
+@optunity.cross_validated(x=X, y=y, num_folds=10, num_iter=2)
 def svm_auc(x_train, y_train, x_test, y_test, logC, logGamma):
-    model = sklearn.svm.SVC(C=10 ** logC, gamma=10 ** logGamma).fit(x_train, y_train)
+    model = sklearn.svm.SVC(kernel='rbf',C=10 ** logC, gamma=10 ** logGamma).fit(x_train, y_train)
     decision_values = model.decision_function(x_test)
     return optunity.metrics.roc_auc(y_test, decision_values)
 
 # perform tuning
-hps, _, _ = optunity.maximize(svm_auc, num_evals=200, logC=[-5, 2], logGamma=[-5, 1])
+hps, _, _ = optunity.maximize(svm_auc, num_evals=100, logC=[-5, 2], logGamma=[-5, 1])
 
 # train model on the full training set with tuned hyperparameters
-optimal_model = sklearn.svm.SVC(C=10 ** hps['logC'], gamma=10 ** hps['logGamma']).fit(data, labels)
+clf = sklearn.svm.SVC(kernel='rbf',C=10 ** hps['logC'], gamma=10 ** hps['logGamma']).fit(X, y)
 
 # Train the classifier
 #clf = svm.SVC(kernel='rbf', C=10 ** hps['logC'],gamma=10 ** hps['logGamma'], degree=3,coef0=0.0,tol=0.001)
@@ -269,18 +342,13 @@ clf.fit(X_train, y_train)
 accuracy = clf.score(X_test, y_test)
 print accuracy
 
-example_measures = np.array([[1.0,0.0,1.0,1.0]])
+example_measures = np.array([[0.6,0.3,0.1]])
 #example_measures = example_measures.reshape(len(example_measures),-1)
 prediction = clf.predict(example_measures)
 print prediction
 
-# Given the model can we correctly predict the btc change points?
 
-# Make a simple example to demonstrate.
-
-# Replicate one of the points
-
-# Visualise 2D
+# Visualise 3D
 X1 = X[:,0][y == 1]
 X0 = X[:,0][y == -1]
 Y1 = X[:,1][y == 1]
@@ -288,44 +356,16 @@ Y0 = X[:,1][y == -1]
 Z1 = X[:,2][y == 1]
 Z0 = X[:,2][y == -1]
 
-plt.scatter(X0,Y0, color='b')
-plt.scatter(X1,Y1, color='r')
-plt.show()
-
-# Visualise 3D
-X1 = X[:,0][y == 1]
-X0 = X[:,0][y == 0]
-Y1 = X[:,1][y == 1]
-Y0 = X[:,1][y == 0]
-Z1 = X[:,2][y == 1]
-Z0 = X[:,2][y == 0]
-Xs = X[:,0]
-Ys = X[:,1]
-Zs = X[:,2]
 fig = plt.figure()
 ax = fig.add_subplot(111, projection='3d')
-
-ax.scatter(X1, Y1, Z1, color='r')
-ax.scatter(X0, Y0, Z0, color='b')
-ax.scatter(Xs, Ys, Zs, color='black')
-# rotate the axes and update
-for angle in range(0, 360):
-    ax.view_init(30, angle)
-    plt.draw()
-    plt.pause(.001)
-
-w = clf.coef_[0]
-print(w)
-a = -w[0] / w[1]
-
-xx = np.linspace(0,12)
-yy = a * xx - clf.intercept_[0] / w[1]
-
-h0 = plt.plot(xx, yy, 'k-', label="non weighted div")
-
-plt.scatter(X[:, 0], X[:, 1], c = y)
-plt.legend()
-plt.show()
+ax.scatter(X1, Y1, Z1, color='red')
+ax.scatter(X0, Y0, Z0, color='blue')
+ax.set_xlabel('Negative')
+ax.set_ylabel('Neutral')
+ax.set_zlabel('Positive')
+ax.view_init(25, 45)
+plt.axis('tight')
+plt.savefig(directory+'Images/sentimentSVM_real.png')
 # Run a test
 
 # Maybe make a 3D plot of sentiment (neg neu pos) colored by 1 / 0 stock increase

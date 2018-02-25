@@ -1,4 +1,6 @@
-# Time series analysis of BTC btc_data
+'''
+Time Series analysis of Bitcoin
+'''
 
 import quandl
 import pickle
@@ -23,6 +25,11 @@ directory = '/Users/lukehindson/PycharmProjects/Bitcoin/'
 
 
 def btc_quandl(id):
+    '''
+    Collect Quandal time series data as dataframe and pickle. If it exists already load it from pickle
+    :param id: the quandal id
+    :return: Quabdal dataframe
+    '''
     # Grab and store Quandal data for bitcoin value
     quandl.ApiConfig.api_key = 'ftosgLxbsFdzpqFzPCCH'
     # Try to grab a pickled version if it exists
@@ -112,6 +119,7 @@ cneg_data = cneg_data['delta']
 cpos_data.to_csv(directory+'Data/Bitcoin-analysis/cpos.csv')
 cneg_data.to_csv(directory+'Data/Bitcoin-analysis/cneg.csv')
 
+# Make a plot
 btc_data_prophet_log.plot(btc_data_forecast_log, xlabel = 'Date', ylabel = 'LOG Weighted Price ($)')
 plt.plot(btc_data_forecast_log['ds'], btc_data_forecast_log['yhat'], color = 'navy', linewidth = 2.0, label = 'Modeled')
 plt.vlines(cpos_data.index, ymin = 0, ymax= 10, colors = 'g', linewidth=1.2, linestyles = 'dashed', label = '+ve Change')
@@ -125,16 +133,17 @@ btc_data_prophet_log.plot_components(btc_data_forecast_log)
 plt.savefig(directory+'Images/btc_data_components.png')
 plt.clf()
 
+# TODO Turn this into a function
 # Do the same for the Volume
 btc_fbprohpet['y'] = np.log(btc_fbprohpet['Volume (Currency)'])
 btc_data_prophet_log = fbprophet.Prophet(yearly_seasonality=True, weekly_seasonality=False)
+
 # Pickle
 if os.path.isfile(directory+'Data/Models/fbprophet_logvolume.model.sav'):
     btc_data_prophet_log = pickle.load(open(directory+'Data/Models/fbprophet_logvolume.model.sav', 'rb'))
 else:
     btc_data_prophet_log.fit(btc_fbprohpet)
     pickle.dump(btc_data_prophet_log, open(directory+'Data/Models/fbprophet_logvolume.model.sav', 'wb'))
-
 
 btc_data_forecast_log = btc_data_prophet_log.make_future_dataframe(periods=365*2, freq='D')
 btc_data_forecast_log = btc_data_prophet_log.predict(btc_data_forecast_log)
@@ -285,6 +294,7 @@ plt.clf()
 
 
 # Moving Average Convergence/Divergence
+# Accumulation distribution
 # https://www.investopedia.com/university/technical/techanalysis10.asp
 
 
@@ -311,8 +321,6 @@ plt.savefig(directory+'Images/btc_crossvalidation5.png')
 #ax.text(x=pd.to_datetime('2013-01-01'),y=6, s='Horizon', color='black',fontsize=16, fontweight='bold', alpha=0.8);
 
 # Can we use the sentiment analysis to predict change points
-
-
 
 # Test changepoints
 for changepoint in [0.001, 0.05, 0.1, 0.5]:

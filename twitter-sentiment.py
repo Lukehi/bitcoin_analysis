@@ -1,4 +1,9 @@
-# Twitter Bitcoin sentiment analysis
+'''
+Collect Tweets and perform a basic sentiment analysis
+'''
+
+#TODO Need to clean tweets more effectively
+
 import got
 from nltk.sentiment.util import *
 import pandas as pd
@@ -121,7 +126,6 @@ plt.legend(loc="upper right")
 plt.savefig(directory+'Images/twitter_sentiment.png')
 plt.clf()
 
-
 # Rerun the VADER sentiment because we need all three features
 df_sentiment = pd.DataFrame(columns=['date','clean_text'])
 
@@ -144,21 +148,25 @@ for file in csv_files:
 df_sentiment = df_sentiment.set_index(pd.to_datetime(df_sentiment.date))
 df_sentiment.to_csv(directory+'Data/Twitter/sentiment_vader_all.csv')
 
+df_sentiment = pd.read_csv(directory+'Data/Twitter/sentiment_vader_all.csv')
+
 # Resample every 3 days. remove neutral
 df_sentiment3d = df_sentiment[df_sentiment['neu'] != 1.0]
-df_sentiment3d = df_sentiment.resample('3d').mean()
+df_sentiment3d = df_sentiment3d.set_index('date')
+df_sentiment3d.index = pd.to_datetime(df_sentiment3d.index)
+df_sentiment3d = df_sentiment3d.resample('3d').mean()
 
 # Write out the results to a csv
 df_sentiment3d.to_csv(directory+'Data/Twitter/sentiment_vader_all_3d.csv')
 
 # Resample every 1 day. remove neutral
 df_sentiment1d = df_sentiment[df_sentiment['neu'] != 1.0]
-df_sentiment1d = df_sentiment.resample('d').mean()
+df_sentiment1d = df_sentiment1d.set_index('date')
+df_sentiment1d.index = pd.to_datetime(df_sentiment1d.index)
+df_sentiment1d = df_sentiment1d.resample('d').mean()
 
 # Write out the results to a csv
 df_sentiment1d.to_csv(directory+'Data/Twitter/sentiment_vader_all_1d.csv')
-
-
 
 # Test the NLTK VADER approach on the twitter corpus. Do we accurately retrieve +ve or -ve reviews?
 # http://www.nltk.org/api/nltk.sentiment.html

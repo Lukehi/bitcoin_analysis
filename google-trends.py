@@ -1,3 +1,7 @@
+'''
+Collect daily data from Google Trends and store to CSV
+'''
+
 from datetime import datetime, timedelta
 from pytrends.request import TrendReq
 import pandas as pd
