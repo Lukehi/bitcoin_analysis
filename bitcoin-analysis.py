@@ -31,7 +31,7 @@ def btc_quandl(id):
     :return: Quabdal dataframe
     '''
     # Grab and store Quandal data for bitcoin value
-    quandl.ApiConfig.api_key = 'ftosgLxbsFdzpqFzPCCH'
+    quandl.ApiConfig.api_key = ''
     # Try to grab a pickled version if it exists
     cache_path = directory+'Data/'+'{}.pkl'.format(id).replace('/', '-')
     try:
